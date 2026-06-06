@@ -19,7 +19,7 @@ the pod's home volume, not baked into the image.
 
 ## Tech stack
 
-- **Build:** a single `Dockerfile`, `FROM node:22-bookworm-slim`.
+- **Build:** a single `Dockerfile`, `FROM node:22-bookworm-slim` (digest-pinned; Renovate keeps it current).
 - **Registry:** GHCR — `ghcr.io/coreyjonoliver-labs/claude-dev` (public package).
 - **CI:** GitHub Actions builds, pushes, and attaches a Sigstore-signed SLSA
   build-provenance attestation on every change to `Dockerfile`/`tmux.conf`.

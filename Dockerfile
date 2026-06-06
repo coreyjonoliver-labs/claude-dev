@@ -3,8 +3,8 @@
 # ghcr.io/coreyjonoliver-labs/claude-dev; consumers digest-pin it. Minimal on
 # purpose: Claude Code + git + gh + tmux baked in; per-repo toolchains are
 # installed interactively in the session and persist on the pod's home volume.
-# Runs as non-root UID 1000 for a Kyverno-restricted (non-root, ro-rootfs) pod.
-FROM node:22-bookworm-slim
+# Runs as non-root UID 1000 to fit a restricted (non-root, read-only-rootfs) pod posture.
+FROM node:22-bookworm-slim@sha256:7af03b14a13c8cdd38e45058fd957bf00a72bbe17feac43b1c15a689c029c732
 
 # Base tools.
 RUN apt-get update \

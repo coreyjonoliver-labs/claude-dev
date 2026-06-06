@@ -27,8 +27,8 @@ plus hadolint is the gate.
 
 ## Dockerfile rules
 
-- **Pin the base image.** `FROM node:22-bookworm-slim` is the baseline; prefer adding a
-  digest (`@sha256:…`) when bumping, kept current by Renovate.
+- **Pin the base image by digest.** `FROM node:22-bookworm-slim@sha256:…` — always pinned;
+  Renovate (`renovate.json`, `pinDigests`) keeps the digest current.
 - **Run as non-root.** The image must end on `USER 1000` (the `claude` user). Never leave
   the final user as root; never `chmod` world-writable paths into the image.
 - **Lean, deterministic layers.** Combine related `RUN` steps; always

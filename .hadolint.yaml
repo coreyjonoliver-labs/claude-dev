@@ -1,0 +1,17 @@
+# hadolint config for the claude-dev image. Each ignore is deliberate, not a blanket
+# silence — the rule genuinely doesn't fit this image's "minimal, current-tools" design:
+#
+#   DL3008 — pin apt package versions. Impractical on Debian: point versions are removed
+#            from the archive over time, which breaks reproducible rebuilds. The real
+#            reproducibility control here is the digest-pinned base image (FROM …@sha256)
+#            + Renovate keeping it current.
+#   DL3016 — pin the npm (global) package version. `@anthropic-ai/claude-code` is
+#            intentionally installed at latest — shipping a *current* Claude Code is the
+#            whole point of the image; pinning it would defeat that.
+#   SC2174 — `mkdir -p -m 755 /etc/apt/keyrings`: the warning is about -m not applying to
+#            parents created by -p. Only the leaf (keyrings) is created here, so the mode
+#            is applied as intended.
+ignored:
+  - DL3008
+  - DL3016
+  - SC2174

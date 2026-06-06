@@ -5,19 +5,20 @@ that's empty it promotes from **Up Next**. Keep items small enough to be one spe
 
 ## Current Focus
 
-- [ ] **Establish the build + provenance pipeline** — land `.github/workflows/build.yml`
-  (operator-applied; guarded path) that builds the image, pushes to
-  `ghcr.io/coreyjonoliver-labs/claude-dev`, and attaches a SLSA build-provenance
-  attestation; confirm a pushed digest verifies with `gh attestation verify`. Proves the
-  spec → review-gate → track loop end to end.
+- [x] **Establish the build + provenance pipeline** — 2026-06-06. `.github/workflows/build.yml`
+  builds, pushes, and attests `ghcr.io/coreyjonoliver-labs/claude-dev`; the genesis build
+  verified end-to-end with `gh attestation verify` (public-good Sigstore). Spec
+  `docs/specs/build-provenance-pipeline.md` Complete.
 
 ## Up Next
 
-- [ ] **Pin the base image by digest** — add `@sha256:…` to `FROM node:22-bookworm-slim`
-  and wire Renovate to keep it current.
+- [x] **Pin the base image by digest** — 2026-06-06. `FROM node:22-bookworm-slim@sha256:7af03b14…`
+  pinned; `renovate.json` added (`pinDigests`, 5-day `minimumReleaseAge`) to keep the base
+  image and action SHAs current.
 
 ## Later
 
-- [ ] Add `hadolint` config (`.hadolint.yaml`) if the default ruleset needs tuning.
+- [x] Add `hadolint` config (`.hadolint.yaml`) — 2026-06-06. Documented ignores
+  (DL3008/DL3016/SC2174) so the lint gate is clean for a current-tools image.
 - [ ] Revisit `/graduate` if the image ever becomes load-bearing enough to want a CI gate
   + branch protection.
