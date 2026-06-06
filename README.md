@@ -11,8 +11,8 @@ Built `FROM node:22-bookworm-slim`:
 - **Claude Code** (`@anthropic-ai/claude-code`), baked in — no startup `npm` egress
 - **git**, **GitHub CLI** (`gh`), **tmux** (with a true-color `/etc/tmux.conf`)
 - `curl`, `jq`, `less`, `gnupg`, `openssh-client`, `ca-certificates`, `ncurses-term`
-- Runs as **non-root UID 1000** (`claude`), home at `/home/claude` — satisfies a
-  Kyverno *restricted* / non-root, read-only-rootfs pod posture
+- Runs as **non-root UID 1000** (`claude`), home at `/home/claude` — fits a
+  *restricted* / non-root, read-only-rootfs pod security posture
 - `CMD ["sleep", "infinity"]` — the pod stays up; you attach over `kubectl exec` with
   `tmux new -A -s main`
 
@@ -44,7 +44,7 @@ gh attestation verify \
 ```
 
 It reports the signer identity as this repo's build workflow on `main`. The attestation
-proves *origin* (this CI built these bytes); pin the digest downstream for *immutability*.
+proves *origin* (this CI built these bytes); pin the digest where you use it for *immutability*.
 
 ## Building
 

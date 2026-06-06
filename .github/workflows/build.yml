@@ -31,4 +31,5 @@ jobs:
           subject-name: ghcr.io/coreyjonoliver-labs/claude-dev   # tag-less
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+          create-storage-record: false   # skip the org-gated artifact-metadata record; the attestation persists via the repo API + registry + Rekor
       - run: echo "pushed ghcr.io/coreyjonoliver-labs/claude-dev:0.1.0@${{ steps.build.outputs.digest }}"

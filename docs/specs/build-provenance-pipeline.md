@@ -1,12 +1,23 @@
 # Spec: Build + provenance pipeline
 
-**Status:** Ready
+**Status:** Complete
 **Kind:** Implementation
 **Author:** Corey Oliver
 **Date:** 2026-06-06
 **Depends on:** None
 
 ---
+
+> **Verified (2026-06-06):** the genesis build (run 27075771045) built, pushed, and
+> attested `ghcr.io/coreyjonoliver-labs/claude-dev@sha256:24b0fcc…`; `gh attestation
+> verify --repo coreyjonoliver-labs/claude-dev` passed, naming the signer identity
+> `…/claude-dev/.github/workflows/build.yml@refs/heads/main` (issuer
+> `token.actions.githubusercontent.com`, public-good Sigstore). All acceptance criteria
+> met. The org-gated artifact-metadata "storage record" was a non-fatal warning,
+> suppressed with `create-storage-record: false` (operator-applied to the guarded
+> `build.yml` on the close branch). Hardening alongside the close: base image
+> digest-pinned + Renovate configured to keep the base image / action SHAs current, and a
+> `.hadolint.yaml` so the lint gate is clean.
 
 ## Summary
 
@@ -18,21 +29,20 @@ is the repo's reason to exist and the first run of the spec → review-gate → 
 ## Goal
 
 - **Implementation:** As the image's maintainer, I want every pushed digest to carry
-  verifiable proof that *this repo's CI* built it, so consumers can trust the image's
-  origin (not just its immutability via the digest pin).
+  verifiable proof that *this repo's CI* built it, so the image's origin is verifiable —
+  not just its immutability via the digest pin.
 
 ## Background
 
 The image (`Dockerfile` + `tmux.conf`) is published as the public package
-`ghcr.io/coreyjonoliver-labs/claude-dev` and consumed by a Kubernetes workload that
-digest-pins it. A digest pin proves the bytes don't change; it proves nothing about
-*who built them*. Build provenance closes that gap.
+`ghcr.io/coreyjonoliver-labs/claude-dev` and digest-pinned where it's used. A digest pin
+proves the bytes don't change; it proves nothing about *who built them*. Build provenance
+closes that gap.
 
 This repo is **public**, so the attestation is free and anchored to the **public-good
-Sigstore** trust root (Fulcio/Rekor) — the standard, well-supported path. The producer
-side (this spec) is self-contained: it ends at "a verifiable attestation exists for each
-digest." How a downstream admission controller *enforces* that attestation is the
-consumer's concern and explicitly out of scope here.
+Sigstore** trust root (Fulcio/Rekor) — the standard, well-supported path. This spec is
+self-contained: its scope ends at "a verifiable attestation exists for each pushed
+digest."
 
 `.github/workflows/**` is operator-edit-only under the guard chain, so the workflow file
 is delivered as an operator-applied artifact (the agent provides its exact content); the
@@ -127,17 +137,13 @@ Then every action is SHA-pinned and the permissions are exactly id-token/attesta
   `whoami` = `claude` / UID 1000 and `claude --version` works.
 - **CI:** a real push builds, pushes, and attests; the run's final line prints the digest.
 - **Verification:** `gh attestation verify … --repo coreyjonoliver-labs/claude-dev` passes.
-- **Boundary:** whether a *consumer* enforces the attestation at admission is out of scope
-  for this repo; this spec guarantees a verifiable attestation exists.
+- **Boundary:** the spec guarantees a verifiable attestation exists for each pushed
+  digest — that is the entirety of this repo's responsibility.
 
 ## Out of Scope
 
-- **Downstream admission enforcement** (e.g. a Kyverno `verifyImages` policy that gates
-  pods on this attestation) — that lives in the consuming repo, and the GHCR
-  referrers-discovery question for that path is a separate investigation.
 - **SBOM attestation** — a natural fast-follow on the same `attest` machinery; not here.
 - **Multi-arch builds** — single-arch for now.
-- **Base-image digest pinning** — tracked as its own backlog item.
 
 ## End-to-End Verification
 
@@ -154,5 +160,4 @@ confirms origin against this repo — with no secret in the repo or image.
 
 ## Open Questions
 
-- None blocking. (Downstream Kyverno admission discovery on GHCR is tracked in the
-  consuming repo, not here.)
+- None.
