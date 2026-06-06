@@ -1,0 +1,10 @@
+# The image build context is the repo root; only the Dockerfile + tmux.conf are
+# needed. Exclude everything else so repo metadata can't bloat or leak into layers.
+.git
+.github
+.claude
+docs
+*.md
+LICENSE
+BACKLOG.md
+PROGRESS.md

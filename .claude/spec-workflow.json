@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/coreyjonoliver-labs/claude-spec-workflow/main/plugin/schema/spec-workflow.schema.json",
+  "version": 1,
+  "project": {
+    "name": "claude-dev",
+    "tagline": "Minimal, non-root container image for running Claude Code in a Kubernetes dev pod.",
+    "type": "container image",
+    "primaryLanguage": "dockerfile"
+  },
+  "commands": {
+    "lint": "hadolint Dockerfile",
+    "build": "docker build ."
+  },
+  "protectedBranch": "main",
+  "profile": "greenfield"
+}
