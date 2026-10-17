@@ -12,9 +12,15 @@ RUN apt-get update \
       git tmux ncurses-term ca-certificates curl jq less openssh-client gnupg \
  && rm -rf /var/lib/apt/lists/*
 
-# System-wide tmux config (true-color; see tmux.conf). On the rootfs at
-# /etc/tmux.conf so the /home/claude PVC mount can't shadow it.
+# System-wide tmux config (true-color, non-login window shells; see tmux.conf).
+# On the rootfs at /etc/tmux.conf so the /home/claude PVC mount can't shadow it.
 COPY tmux.conf /etc/tmux.conf
+
+# Interactive shells warn once if `claude` stops resolving to the baked binary
+# (see claude-path-check.bash; a detector: the home volume's startup files run later).
+COPY claude-path-check.bash /tmp/claude-path-check.bash
+RUN cat /tmp/claude-path-check.bash >> /etc/bash.bashrc \
+ && rm /tmp/claude-path-check.bash
 
 # GitHub CLI (official apt repo).
 RUN mkdir -p -m 755 /etc/apt/keyrings \
@@ -47,9 +53,12 @@ RUN userdel -r node 2>/dev/null || true \
  && useradd -u 1000 -g 1000 -m -d /home/claude -s /bin/bash claude
 
 # - The user's npm global prefix lives on the home volume so tools installed in
-#   the session persist, but it goes LAST on PATH: the baked, attested binaries
-#   always win, and a `claude` installed there (by `npm i -g` or a self-update)
-#   cannot shadow the pinned one.
+#   the session persist, but it goes LAST on PATH, so a `claude` installed there
+#   by `npm i -g` does not shadow the pinned one in a non-login shell or a tmux
+#   window (/etc/tmux.conf starts windows non-login). NOT guaranteed: a LOGIN shell
+#   (`bash -l`) sources ~/.profile from the home volume, whose stock Debian
+#   copy prepends ~/.local/bin, and any startup file there can rewrite PATH;
+#   /etc/bash.bashrc then WARNS at the prompt.
 # - The in-app updater is disabled (DISABLE_AUTOUPDATER), and so are manual
 #   `claude update` / `claude install` (DISABLE_UPDATES): a self-updated binary
 #   would sit outside the build attestation. Update by bumping the pin.

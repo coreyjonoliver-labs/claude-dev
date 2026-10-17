@@ -1,8 +1,9 @@
-# The image build context is the repo root; only the Dockerfile + tmux.conf are
-# needed. Exclude everything else so repo metadata can't bloat or leak into layers.
+# The image build context is the repo root; only the Dockerfile, tmux.conf and
+# claude-path-check.bash are needed. Exclude everything else so repo metadata can't bloat or leak into layers.
 .git
 .github
 .claude
+ci
 docs
 *.md
 LICENSE
