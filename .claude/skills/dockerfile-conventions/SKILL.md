@@ -72,5 +72,11 @@ When a change alters behavior, update in the same change:
 
 - **Bump the base image / a dependency:** update the pin, `hadolint Dockerfile`,
   `docker build .`, confirm the image still runs `claude --version` as UID 1000.
+- **Bump Claude Code:** change `ARG CLAUDE_CODE_VERSION` (Renovate opens these PRs via the
+  `# renovate:` annotation, after the 5-day release-age cooldown). Read the upstream
+  changelog for the skipped versions first. Install scripts must stay enabled (the
+  postinstall places the native binary); the build fails if `claude --version` does not
+  match the pin. Keep `DISABLE_AUTOUPDATER`/`DISABLE_UPDATES` set and the home-volume npm
+  bin dir last on `PATH`.
 - **Add a baked-in tool:** justify it in the spec, add it to a combined `RUN` with proper
   cleanup, re-lint + re-build, update `README.md`'s "What's in it".

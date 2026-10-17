@@ -8,7 +8,14 @@ as a long-lived **interactive dev pod** in Kubernetes. Published to
 
 Built `FROM node:22-bookworm-slim`:
 
-- **Claude Code** (`@anthropic-ai/claude-code`), baked in — no startup `npm` egress
+- **Claude Code** (`@anthropic-ai/claude-code`), baked in at an **exact version**
+  (`ARG CLAUDE_CODE_VERSION` in the `Dockerfile`) — no startup `npm` egress. Renovate
+  proposes bumps after a 5-day release-age cooldown; they are merged by hand.
+  - The in-app updater is off (`DISABLE_AUTOUPDATER=1`), and so are manual
+    `claude update` / `claude install` (`DISABLE_UPDATES=1`): a self-updated binary
+    would sit outside the build attestation. To update, bump the pin.
+  - `/home/claude/.npm-global/bin` (where `npm i -g` installs, on the home volume) is
+    **last** on `PATH`, so a `claude` installed there can never shadow the baked one.
 - **git**, **GitHub CLI** (`gh`), **tmux** (with a true-color `/etc/tmux.conf`)
 - `curl`, `jq`, `less`, `gnupg`, `openssh-client`, `ca-certificates`, `ncurses-term`
 - Runs as **non-root UID 1000** (`claude`), home at `/home/claude` — fits a
@@ -48,9 +55,18 @@ proves *origin* (this CI built these bytes); pin the digest where you use it for
 
 ## Building
 
-Pushes to `main` that touch `Dockerfile`/`tmux.conf` (or a manual `workflow_dispatch`)
-build and push the image, then attach the provenance attestation. Action versions are
-SHA-pinned and kept current by Renovate.
+The build workflow first builds the image into the runner and **smoke-tests** it the way
+a pod runs it (UID 1000, read-only rootfs, writable `/tmp` and home): `claude --version`
+is exactly the pinned version, `claude --help` lists `--bg` and `agents`, the binary
+carries `remote-control --spawn`/`--capacity`, and `claude` resolves to the baked path
+even with a decoy `claude` on the home volume. Pull requests stop there.
+
+On `main` (a push touching `Dockerfile`/`tmux.conf`/the workflow, or a manual
+`workflow_dispatch`) it then pushes the tested image as
+`ghcr.io/coreyjonoliver-labs/claude-dev:0.2.0`, checks the pushed image ID equals the
+tested one, and attests the **registry digest** returned by the push. The tag is a
+human-readable label only; pin the digest. Action versions are SHA-pinned and kept
+current by Renovate.
 
 ## License
 

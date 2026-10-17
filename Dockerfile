@@ -27,9 +27,18 @@ RUN mkdir -p -m 755 /etc/apt/keyrings \
  && apt-get install -y --no-install-recommends gh \
  && rm -rf /var/lib/apt/lists/*
 
-# Claude Code, baked in (reproducible; no startup npm egress).
-RUN npm install -g @anthropic-ai/claude-code \
- && npm cache clean --force
+# Claude Code, baked in at an exact version (reproducible builds; no startup npm
+# egress). Renovate proposes bumps via the annotation below, subject to the
+# repo's release-age cooldown. Install scripts stay ON: the package's postinstall
+# copies the platform-native binary (from its optionalDependencies) over a
+# placeholder stub, and without it `claude` is not runnable. The build fails if
+# the installed binary does not report exactly the pinned version.
+# renovate: datasource=npm depName=@anthropic-ai/claude-code
+ARG CLAUDE_CODE_VERSION=2.1.296
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && npm cache clean --force \
+ && v="$(claude --version)" \
+ && case "$v" in "${CLAUDE_CODE_VERSION} "*) ;; *) echo "claude --version: '$v', want ${CLAUDE_CODE_VERSION}" >&2; exit 1 ;; esac
 
 # A UID-1000 non-root user whose home is the PVC mount point. The base image's
 # `node` user already owns UID 1000, so replace it with `claude`.
@@ -37,9 +46,18 @@ RUN userdel -r node 2>/dev/null || true \
  && groupadd -g 1000 claude \
  && useradd -u 1000 -g 1000 -m -d /home/claude -s /bin/bash claude
 
+# - The user's npm global prefix lives on the home volume so tools installed in
+#   the session persist, but it goes LAST on PATH: the baked, attested binaries
+#   always win, and a `claude` installed there (by `npm i -g` or a self-update)
+#   cannot shadow the pinned one.
+# - The in-app updater is disabled (DISABLE_AUTOUPDATER), and so are manual
+#   `claude update` / `claude install` (DISABLE_UPDATES): a self-updated binary
+#   would sit outside the build attestation. Update by bumping the pin.
 ENV HOME=/home/claude \
     NPM_CONFIG_PREFIX=/home/claude/.npm-global \
-    PATH=/home/claude/.npm-global/bin:$PATH
+    PATH=$PATH:/home/claude/.npm-global/bin \
+    DISABLE_AUTOUPDATER=1 \
+    DISABLE_UPDATES=1
 
 USER 1000
 WORKDIR /home/claude

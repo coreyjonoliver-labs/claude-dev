@@ -7,5 +7,15 @@
   "automerge": false,
   "pinDigests": true,
   "minimumReleaseAge": "5 days",
-  "internalChecksFilter": "strict"
+  "internalChecksFilter": "strict",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Version pins annotated with a `# renovate:` comment above an ARG in the Dockerfile (e.g. Claude Code).",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG [A-Z0-9_]+=(?<currentValue>[^\\s]+)"
+      ]
+    }
+  ]
 }
