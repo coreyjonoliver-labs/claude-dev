@@ -2,34 +2,115 @@ name: build
 on:
   push:
     branches: [main]
-    paths: ["Dockerfile", "tmux.conf", ".github/workflows/build.yml"]
+    paths: ["Dockerfile", "tmux.conf", "claude-path-check.bash", "ci/**", ".github/workflows/build.yml"]
+  # Pull requests (Renovate bumps included) run the build + smoke tests only;
+  # nothing is pushed or attested off main.
+  pull_request:
+    paths: ["Dockerfile", "tmux.conf", "claude-path-check.bash", "ci/**", ".github/workflows/build.yml"]
   workflow_dispatch: {}
 permissions:
   contents: read
   packages: write
   id-token: write
   attestations: write
+env:
+  IMAGE: ghcr.io/coreyjonoliver-labs/claude-dev
+  TAG: "0.2.0"
+  LOCAL: claude-dev:smoke
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # 1. Build and load into the runner's Docker for testing. Nothing leaves the runner.
+      - id: test-build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.LOCAL }}
+
+      # 2. Smoke tests, run the way the pod runs the image: uid 1000, read-only
+      #    rootfs, writable /tmp and home. Any failure stops the job before a push.
+      - name: "smoke: claude --version is exactly the pinned version"
+        run: |
+          set -euo pipefail
+          want="$(sed -n 's/^ARG CLAUDE_CODE_VERSION=//p' Dockerfile)"
+          test -n "$want"
+          got="$(docker run --rm --user 1000:1000 --read-only --tmpfs /tmp \
+            --tmpfs /home/claude:uid=1000,gid=1000,exec "$LOCAL" claude --version)"
+          echo "want=$want got=$got"
+          test "$got" = "$want (Claude Code)"
+      - name: "smoke: claude --help lists --bg and the agents command"
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000:1000 --read-only --tmpfs /tmp \
+            --tmpfs /home/claude:uid=1000,gid=1000,exec "$LOCAL" claude --help > "$RUNNER_TEMP/help.txt"
+          grep -qE -- '--bg, --background' "$RUNNER_TEMP/help.txt"
+          grep -qE '^ +agents( |$)' "$RUNNER_TEMP/help.txt"
+      - name: "smoke: remote-control supports --spawn and --capacity"
+        # `claude remote-control --help` exits with a sign-in error before
+        # printing usage on versions before 2.1.302, and CI is not signed in, so
+        # assert on the usage text compiled into the baked binary instead.
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000:1000 --read-only --tmpfs /tmp \
+            --tmpfs /home/claude:uid=1000,gid=1000,exec "$LOCAL" \
+            bash -c 'grep -a -h -- "--spawn <mode> \|--capacity <N> " "$(readlink -f "$(command -v claude)")"' > "$RUNNER_TEMP/rc.txt"
+          cat "$RUNNER_TEMP/rc.txt"
+          grep -qF -- '--spawn <mode>' "$RUNNER_TEMP/rc.txt"
+          grep -qF -- 'worktree' "$RUNNER_TEMP/rc.txt"
+          grep -qF -- '--capacity <N>' "$RUNNER_TEMP/rc.txt"
+      - name: "smoke: non-root, read-only rootfs, baked claude wins in a non-login shell and a tmux window; a login shell warns"
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000:1000 --read-only --tmpfs /tmp \
+            --tmpfs /home/claude:uid=1000,gid=1000,exec \
+            -v "$PWD/ci:/ci:ro" "$LOCAL" bash /ci/smoke-shells.sh
+
+      # 3. Main only. Push BY DIGEST (no tag yet), prove the pushed image is the
+      #    tested one, attest that digest, and only then point the tag at it, so a
+      #    failed gate never leaves the tag on an unverified image.
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      # Same builder and context as the tested build, so every layer is a cache
+      # hit. No buildx provenance/SBOM: the push is then a single manifest, and
+      # provenance comes from attest-build-provenance below.
       - id: build
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          push: true
-          tags: ghcr.io/coreyjonoliver-labs/claude-dev:0.1.0
-      - uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      - name: pushed image is the tested image (config digests)
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: bash ci/release.sh verify "$IMAGE" "$DIGEST" "$LOCAL"
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
         with:
-          subject-name: ghcr.io/coreyjonoliver-labs/claude-dev   # tag-less
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-name: ${{ env.IMAGE }}   # tag-less
+          subject-digest: ${{ steps.build.outputs.digest }}   # the registry digest from the push step
           push-to-registry: true
           create-storage-record: false   # skip the org-gated artifact-metadata record; the attestation persists via the repo API + registry + Rekor
-      - run: echo "pushed ghcr.io/coreyjonoliver-labs/claude-dev:0.1.0@${{ steps.build.outputs.digest }}"
+      - name: tag the attested digest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: bash ci/release.sh tag "$IMAGE" "$DIGEST" "$TAG"
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: echo "pushed ${IMAGE}:${TAG}@${DIGEST}"
